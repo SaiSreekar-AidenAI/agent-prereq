@@ -1,0 +1,10 @@
+{
+  "name": "lean-agent-prototype",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The smallest real coding-agent loop, distilled from claude-code/opencode/codex/goose. Runs on Node 24 (native TS type-stripping).",
+  "scripts": {
+    "start": "node agent.ts"
+  }
+}
