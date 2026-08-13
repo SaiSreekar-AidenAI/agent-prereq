@@ -3084,10 +3084,15 @@ tools = [ ...builtins, reloadTool, ...loadExtensions(dir) ]
 The caveat pi makes explicit: it ships **no permission system** and trusts a
 sandbox/container instead. If an agent can write and load its own tools, keep the
 approval gate (Ch. 7) or run the whole thing sandboxed — self-extension widens the
-blast radius of a bad instruction. The `prototype/` in this repo implements exactly
-this pattern (`extensions.ts` loader + `reload_extensions`, ~50 added lines); run
-`node prototype/agent.ts "build a shout extension and use it"` to watch the agent
-write a tool and hot-load it in one session.
+blast radius of a bad instruction. The reference implementation in `prototype/`
+takes the first option: `src/extensions.ts` is the loader, `reload_extensions` is
+the built-in, and an extension tool goes through the same gate as a built-in, with
+`buildTool`'s fail-closed default treating a tool that forgets to declare
+`readOnly` as a writer. Watch it happen, offline:
+
+```bash
+cd prototype && node agent.ts --mock --yes "build a shout extension and use it"
+```
 
 ## Staged build order
 
@@ -3129,6 +3134,52 @@ Each stage is independently runnable and testable. Do not skip ahead.
   hooks (Ch. 8), and a persistence interface for sessions (Ch. 15).
 - Done when: the agent can call an external MCP server and delegate a scoped subtask
   — with zero new machinery in the loop.
+
+## The reference implementation
+
+Everything above is buildable in one sitting, and `prototype/` in this repo is
+that build: ~4,500 lines of dependency-free TypeScript, no framework, running on
+plain Node. It is not pseudocode — it streams from Anthropic, OpenAI, OpenRouter,
+or any OpenAI-compatible endpoint, and its 69-test suite runs with no API key by
+pointing the same binary at a local server that speaks both wire formats.
+
+Each module is one chapter, so the book and the code can be read against each
+other:
+
+| Chapter | File | What it is |
+|---|---|---|
+| 1, 13 | `src/loop.ts` | the loop, tool execution, subagents |
+| 2 | `src/types.ts` | canonical blocks, dual visibility, pairing back-fill |
+| 3 | `src/tools.ts` | tool interface, ten built-ins, cap-and-spill |
+| 4 | `src/providers.ts`, `src/config.ts`, `src/mock.ts` | two SSE clients, one event union, provider resolution |
+| 5 | `src/prompt.ts` | cacheable prefix + dynamic suffix, reminders |
+| 6 | `src/context.ts` | estimate, threshold, summarize-and-rebuild |
+| 7 | `src/permissions.ts` | rule list, modes, safety floor |
+| 9 | `src/memory.ts` | `AGENTS.md` discovery, tiers, `@includes` |
+| 11 | `src/commands.ts` | client + markdown prompt commands |
+| 15 | `src/session.ts` | JSONL persistence, resume, fork |
+| 17 | `src/extensions.ts` | the self-extension loader |
+
+Four chapters are implemented **nowhere**, on purpose, and their absence is the
+argument of this one: MCP (Ch. 14), hooks (Ch. 8), skills (Ch. 10), and output
+styles (Ch. 12). Each has an obvious seam waiting for it — MCP tools merge
+through `mergeTools`, hooks wrap the single `runOne` call site, a UI consumes
+`TurnHooks` instead of `ui.ts` — which is the point: a kernel with clean seams
+lets you defer, and deferring is cheap only when the seam already exists.
+
+Three things that emerged from actually running it, which pseudocode hides:
+
+- **Compaction needs a floor, not just a ceiling.** On a small context window the
+  system prompt and tool schemas alone can cross the threshold, so a naive
+  proactive check compacts an empty transcript, burns a model call, makes the
+  request *larger*, and does it again next turn. Gate the check on having
+  something to summarize.
+- **A non-interactive run must refuse, not block.** `--print` has nobody to answer
+  a prompt, so an `ask` that awaits stdin hangs forever. Non-interactive mode has
+  to turn `ask` into a denial the model can read and route around.
+- **The exit test has a twin in the tool loop.** "One result per call, in the
+  order asked" is not free once calls run in parallel batches: collect into a map
+  keyed by `tool_use_id` and re-emit in the original order.
 
 ## The disagreements you must resolve
 

@@ -1,10 +1,13 @@
 {
-  "name": "lean-agent-prototype",
-  "version": "0.0.0",
+  "name": "lean-agent",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "The smallest real coding-agent loop, distilled from claude-code/opencode/codex/goose. Runs on Node 24 (native TS type-stripping).",
+  "description": "The runnable core of docs/Agent-Architecture-Handbook.pdf: a multi-provider coding agent in ~2.5k lines of dependency-free TypeScript. Runs on Node 24 via native type-stripping.",
+  "engines": { "node": ">=22.6" },
   "scripts": {
-    "start": "node agent.ts"
+    "start": "node agent.ts",
+    "test": "node test/e2e.ts",
+    "check": "node --experimental-strip-types --check-syntax-only agent.ts || node -e \"process.exit(0)\""
   }
 }

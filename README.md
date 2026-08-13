@@ -4,7 +4,7 @@ A study kit for learning the architecture of real, production coding agents — 
 order to build a **lean, from-scratch agentic framework** (no langchain / autogen /
 langgraph bloat). It clones five reference codebases, maps each against the same
 8 dimensions, compares them side-by-side, distills an opinionated blueprint, and
-ships a tiny runnable agent that embodies the distilled core.
+ships a **working multi-provider coding agent** that implements it.
 
 > Everything here is for **understanding patterns**. `repos/claude-code` is a
 > leaked snapshot of Anthropic's proprietary code — study the *ideas*, don't paste
@@ -15,18 +15,20 @@ ships a tiny runnable agent that embodies the distilled core.
 ```
 repos/        # 5 shallow clones (read-only study material)
 docs/         # the analysis (start here)
-  Agent-Architecture-Handbook.pdf   # ★ the 61-page handbook (read this first)
+  Agent-Architecture-Handbook.pdf   # ★ the 64-page handbook (read this first)
   book/         # the handbook's chapter sources (00-frontmatter .. 17-lean-build)
   claude-code.md  opencode.md  openclaude.md  codex.md  goose.md   # per-repo maps
   comparison.md   # one big table: every dimension × every repo, with file:line cites
   BLUEPRINT.md    # the opinionated lean-framework spec + staged build order
-prototype/    # a small runnable agent (4 tools + self-extension) that IS the distilled core
+prototype/    # lean-agent: the working agent the blueprint describes
+              #   ~4.5k lines, zero dependencies, Anthropic + OpenAI + OpenRouter
+              #   + any OpenAI-compatible endpoint; 69 tests that need no API key
 build/        # the PDF renderer (render.py + venv) and build_pdf.sh
 ```
 
 ## The handbook (PDF)
 
-`docs/Agent-Architecture-Handbook.pdf` is the main deliverable: a 61-page,
+`docs/Agent-Architecture-Handbook.pdf` is the main deliverable: a 64-page,
 no-fluff technical handbook on how coding agents actually work, with pseudocode,
 flows, end-to-end scenarios, and `file:line` citations into the cloned source. 17
 chapters across 5 parts — the core loop, messages, tools, provider/streaming,
@@ -64,7 +66,8 @@ a multi-provider fork of Claude Code. The genuine Rust references are **codex** 
    product surface.
 2. **The exit signal is the absence of a tool-call block — NOT the provider's
    `stop_reason`** (4 of 5 repos explicitly distrust `stop_reason`). This is the
-   single most load-bearing detail; the prototype implements exactly this.
+   single most load-bearing detail; `prototype/` implements exactly this, and
+   `test/e2e.ts` checks it.
 3. **Everything is a tool result.** Schema-validation failures, permission denials,
    and tool exceptions all get fed back to the model as `is_error` results — the
    loop has one happy path and no exception-driven control flow.
@@ -77,29 +80,41 @@ a multi-provider fork of Claude Code. The genuine Rust references are **codex** 
 
 ## Suggested reading order
 
-1. **`prototype/agent.ts`** — read the loop top-to-bottom (15 lines that matter).
+1. **`prototype/src/loop.ts`** — the loop top-to-bottom; the ~40 lines that matter,
+   with every design choice annotated with the chapter it comes from.
 2. **`docs/claude-code.md`** — see that exact loop inside a production agent.
 3. **`docs/opencode.md`** — the cleanest modern take; then **`docs/codex.md`** for
    the Rust/sandbox angle and **`docs/goose.md`** for MCP-native design.
 4. **`docs/comparison.md`** — how all five solve each problem, side by side.
-5. **`docs/BLUEPRINT.md`** — the spec for *your* framework + a v0→v3 build order.
+5. **`docs/BLUEPRINT.md`** — the spec for *your* framework + a v0→v3 build order,
+   and (§7) exactly which parts of it `prototype/` implements.
 
-## Run the prototype
+## Run the agent
 
 ```bash
 cd prototype
-node agent.ts "list the files here"                 # MOCK mode — no API key needed
-export ANTHROPIC_API_KEY=sk-ant-...                 # real multi-step agent
-node agent.ts "read package.json and summarize it"
+node agent.ts                       # interactive; with no API key: offline demo
+node test/e2e.ts                    # 69 tests, no key, no network beyond loopback
+
+export ANTHROPIC_API_KEY=sk-ant-... # or OPENAI_API_KEY / OPENROUTER_API_KEY
+node agent.ts "why does test/foo.spec.ts fail?"
+node agent.ts -m gpt-5 -p "summarize README.md"
+node agent.ts --provider http://localhost:11434/v1 -m qwen2.5-coder   # local
 ```
 
-Needs **Node 24** (runs `.ts` directly via native type-stripping). See
-`prototype/README.md` for options (`ANTHROPIC_MODEL`, `--yes`, the approval gate).
+Slash commands: `/help /clear /compact /resume /model /permissions /context
+/cost /tools /memory /todos /status /init /reload /exit`, plus your own
+markdown commands in `.agent/commands/`.
+
+Needs **Node ≥ 22.6** (runs `.ts` directly via native type-stripping); developed
+on Node 24. See `prototype/README.md` for the full option list and for what the
+agent deliberately does *not* implement.
 
 ## Environment notes
 
 - Built with: `git`, **Node 24**, `go`. No `cargo`/`rustc` or `bun` on this box —
   so codex/goose (Rust) and the Bun apps are **cloned and read, not built** (the
-  deep-dive is source reading). The prototype runs on plain Node.
+  deep-dive is source reading). `prototype/` runs on plain Node with no
+  dependencies, and its test suite needs no API key.
 - Repos are **shallow clones** (`--depth 1`). To get history for one:
   `git -C repos/<name> fetch --unshallow`.

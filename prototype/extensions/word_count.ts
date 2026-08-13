@@ -1,6 +1,11 @@
-// Example extension. Any .ts file here that exports register(pi) (or a tools[]
-// array) adds tools to the agent. This one is loaded automatically at startup;
-// it is also the template the agent follows when it writes its OWN extensions.
+// Example extension (Ch. 17). Any .ts/.mjs file in this directory that exports
+// `register(pi)` — or a `tools` array — adds tools to the agent. This one loads
+// at startup and is also the template the agent follows when it writes its own.
+//
+// A tool declared here goes through exactly the same permission gate as a
+// built-in, and `readOnly` defaults to FALSE if you omit it, so a tool that
+// forgets to declare itself safe is treated as a writer.
+
 export function register(pi) {
   pi.addTool({
     name: "word_count",
@@ -10,7 +15,7 @@ export function register(pi) {
       properties: { text: { type: "string", description: "Text to measure" } },
       required: ["text"],
     },
-    needsApproval: false,
+    readOnly: true,
     async run(input) {
       const text = String(input?.text ?? "");
       const words = (text.trim().match(/\S+/g) || []).length;

@@ -447,3 +447,44 @@ Citations point to the repo whose design to follow for that piece.
 interface for sessions (opencode); an OS sandbox for bash (codex argv-rewrite /
 claude-code bwrap); a second provider via a canonical-event translator (openclaude);
 a typed event stream for a UI (goose `AgentEvent`). Everything in §5 stays omitted.
+
+---
+
+## 7. The reference implementation
+
+`prototype/` is this spec, built: ~4,500 lines of dependency-free TypeScript on
+plain Node, with a 69-test suite that runs offline. Read `prototype/src/loop.ts`
+first and `prototype/README.md` for the operating manual. Status against the
+staged order above:
+
+| Stage | Status | Where |
+|---|---|---|
+| **v0** loop + tools | done | `src/loop.ts`, `src/tools.ts`, `src/types.ts` |
+| **v1** streaming + gate | done | `src/providers.ts`, `src/permissions.ts` |
+| **v2** compaction | done | `src/context.ts` (+ cap-and-spill in `src/tools.ts`) |
+| **v3** MCP | **not built** | seam ready: `mergeTools()` in `src/tools.ts` |
+| **v3** subagents | done | `runSubagent()` in `src/loop.ts`, `task` tool |
+| beyond: sessions | done | `src/session.ts` — JSONL, resume, fork |
+| beyond: 2nd provider | done | Anthropic + OpenAI/OpenRouter/compatible |
+| beyond: event stream for a UI | done | `TurnHooks` in `src/loop.ts` |
+| beyond: OS sandbox | **not built** | seam: `bashTool.run` in `src/tools.ts` |
+
+It also implements three things this spec files under "product surface" but
+which turned out to be load-bearing for daily use, all in ~600 lines total:
+slash commands and markdown prompt commands (Ch. 11), memory-file discovery
+(Ch. 9), and session persistence with `/resume` (Ch. 15). Hooks (Ch. 8), skills
+(Ch. 10), output styles (Ch. 12) and MCP (Ch. 14) remain unbuilt, per §5.
+
+Three corrections this spec earned by being executed:
+
+1. **§1.6 needs a lower bound as well as a threshold.** "Compact when
+   `estimate > window − buffer`" is wrong on its own: the system prompt plus tool
+   schemas can exceed the threshold before the conversation has started, so the
+   agent compacts nothing, spends a model call, and grows the request. Add "and
+   there are at least a few turns to summarize".
+2. **§1.7's `ask` needs a non-interactive answer.** In a headless run there is
+   nobody to prompt. `ask` must degrade to `deny`-with-an-explanation rather than
+   awaiting stdin, or the agent hangs instead of reporting.
+3. **§2's pairing invariant survives parallel execution only if you make it.**
+   Once §1.5's batching lands, results arrive out of order; collect them into a
+   map keyed by `tool_use_id` and re-emit in call order, filling any gap.

@@ -1,0 +1,2 @@
+# Written by the self-extension demo (`node agent.ts "build a shout extension and use it"`).
+extensions/shout.ts
